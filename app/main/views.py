@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.contrib import messages
 
 from .forms import (LoginForm, ProfileForm, RequestAccountForm, RequestPasswdForm,
-                    ProcessAccountForm, ProcessPasswdForm)
+                    ProcessAccountForm, ProcessPasswdForm, NewOrgForm)
 from .models import Request
 
 from webldap import settings
@@ -183,6 +183,26 @@ def profile_edit(request, l):
 
     return form(ctx, 'main/edit.html', request)
 
+@connect_ldap
+def new_org(request, l):
+    if not request.session['is_admin']:
+        messages.error(request, 'Vous n\'êtes pas admin')
+        return HttpResponseRedirect('/org/{}'.format(uid))
+
+    if request.method == 'POST':
+        req = NewOrgForm(request.POST)
+        if req.is_valid():
+            me = l.get_entry(request.session['ldap_binddn'])
+            new_org = l.get_entry('o={},ou=associations,{}'.format(req.cleaned_data['name'], settings.LDAP_BASE))
+            new_org.objectClass='groupOfUniqueNames'
+            new_org.cn = req.cleaned_data['complete_name']
+            new_org.uniqueMember.add(me.dn)
+            new_org.save()
+            messages.success(request, 'Association créée')
+            return HttpResponseRedirect('/') 
+
+    f = NewOrgForm()
+    return form({'form': f}, 'main/new_org.html', request)
 
 @connect_ldap
 def org(request, l, uid):

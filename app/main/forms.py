@@ -81,3 +81,7 @@ class ProcessAccountForm(PasswordCheckMixin, forms.Form):
 class ProcessPasswdForm(PasswordCheckMixin, forms.Form):
     passwd = passwd_field()
     passwd_confirm = passwd_confirm_field()
+
+class NewOrgForm(forms.Form):
+    name = forms.CharField(max_length=100, label="Nom de l'association en minuscules")
+    complete_name = forms.CharField(max_length=100, label="Nom complet de l'association")
