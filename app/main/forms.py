@@ -54,6 +54,8 @@ class ProfileForm(PasswordCheckMixin, forms.Form):
     passwd = passwd_field(required=False)
     passwd_confirm = passwd_confirm_field(required=False)
 
+class ProfilePosixForm(ProfileForm):
+    shell = forms.CharField(max_length=100, label="Shell")
 
 class RequestAccountForm(forms.ModelForm):
     uid = uid_field()

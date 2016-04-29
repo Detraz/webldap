@@ -8,7 +8,7 @@ from django.core.mail import send_mail
 from django.utils import timezone
 from django.contrib import messages
 
-from .forms import (LoginForm, ProfileForm, RequestAccountForm, RequestPasswdForm,
+from .forms import (LoginForm, ProfileForm, ProfilePosixForm, RequestAccountForm, RequestPasswdForm,
                     ProcessAccountForm, ProcessPasswdForm, NewOrgForm)
 from .models import Request
 
@@ -126,19 +126,39 @@ def profile(request, l):
 @connect_ldap
 def profile_edit(request, l):
     me = l.get_entry(request.session['ldap_binddn'])
+    posix = 'posixAccount' in me.objectClass
     if request.method != 'POST':
-        f = ProfileForm(label_suffix='', initial={'email': one(me.mail),
+        if not posix:
+            f = ProfileForm(label_suffix='', initial={'email': one(me.mail),
                                                   'name': me.displayName,
                                                   'nick': one(me.cn)})
+        else:
+            f = ProfilePosixForm(label_suffix='', initial={'email': one(me.mail),
+                                                  'name': me.displayName,
+                                                  'nick': one(me.cn),
+                                                  'shell': me.loginShell})
         ctx = {'form': f, 'name': me.displayName, 'nick': one(me.cn), 'email': one(me.mail)}
 
         return form(ctx, 'main/edit.html', request)
 
-    f = ProfileForm(request.POST)
+    if not posix:
+        f = ProfileForm(request.POST)
+    else:
+        f = ProfilePosixForm(request.POST)
     ctx = {'form': f, 'name': me.displayName, 'nick': one(me.cn), 'email': one(me.mail)}
 
     if not f.is_valid():
         return form(ctx, 'main/edit.html', request)
+
+    if posix:
+        shell = f.cleaned_data['shell']
+        if shell != me.loginShell:
+            try:
+                me.loginShell = shell
+                me.save()
+            except ldapom.error.LDAPError:
+                messages.error(request, 'Shell invalide ?')
+                return form(ctx, 'main/edit.html', request)
 
     name = f.cleaned_data['name']
     nick = f.cleaned_data['nick']
@@ -269,7 +289,6 @@ def org_relegate(request, l, uid, user_uid):
 
     messages.success(request, '{} n\'est plus gérant'.format(user.displayName))
     return HttpResponseRedirect('/org/{}'.format(uid))
-
 
 @connect_ldap
 def org_add(request, l, uid):
